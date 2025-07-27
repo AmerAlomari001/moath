@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>لوحة تحكم المسؤول</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      padding: 10px;
+      border: 1px solid #333;
+      text-align: center;
+    }
+    th {
+      background-color: #eee;
+    }
+    ul#questionsList {
+      padding-right: 0;
+      list-style: none;
+    }
+    ul#questionsList li {
+      background: #f9f9f9;
+      margin-bottom: 10px;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    ul#questionsList li ul {
+      margin-top: 5px;
+      padding-right: 15px;
+    }
+    button {
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="https://uploads.onecompiler.io/43r6ub8mz/43r6u5fru/m1.jpg" class="header-img" alt="شعار" />
+    <h1>تحدي الثلاثين - المسؤول</h1>
+    <button onclick="window.location.href='index.html'" style="margin-top:10px; padding:8px 16px; background-color:#ff7700; color:#fff; border:none; border-radius:5px;">
+      العودة للصفحة الرئيسية
+    </button>
+  </div>
+
+  <div class="admin-container">
+    <h2>إضافة سؤال جديد</h2>
+    <input type="text" id="questionInput" placeholder="اكتب السؤال" />
+    <input type="text" id="opt1" placeholder="الخيار الأول" />
+    <input type="text" id="opt2" placeholder="الخيار الثاني" />
+    <input type="text" id="opt3" placeholder="الخيار الثالث" />
+    <input type="text" id="opt4" placeholder="الخيار الصحيح" />
+    <button onclick="addQuestion()">إضافة</button>
+
+    <h2>قائمة الأسئلة الحالية</h2>
+    <ul id="questionsList"></ul>
+
+    <h2>نتائج المتسابقين</h2>
+    <table id="resultsTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>اسم المتسابق</th>
+          <th>العلامة</th>
+          <th>تاريخ التسجيل</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+    import { getDatabase, ref, push, set, onValue, remove } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyC36UZNHXWDAU-ZghdNRUcRKSv2wAMXFos",
+      authDomain: "quizmoath.firebaseapp.com",
+      databaseURL: "https://quizmoath-default-rtdb.firebaseio.com",
+      projectId: "quizmoath",
+      storageBucket: "quizmoath.firebasestorage.app",
+      messagingSenderId: "453820835054",
+      appId: "1:453820835054:web:7d7fb622fa0984dee93fff",
+      measurementId: "G-66C12P0D76"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // عناصر صفحة الأسئلة
+    const questionInput = document.getElementById("questionInput");
+    const opt1 = document.getElementById("opt1");
+    const opt2 = document.getElementById("opt2");
+    const opt3 = document.getElementById("opt3");
+    const opt4 = document.getElementById("opt4");
+    const questionsList = document.getElementById("questionsList");
+
+    // عناصر صفحة النتائج
+    const tableBody = document.querySelector("#resultsTable tbody");
+
+    const questionsRef = ref(db, "questions");
+    const contestantsRef = ref(db, "contestants");
+
+    let questions = [];
+
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function displayQuestions() {
+      questionsList.innerHTML = "";
+      questions.forEach(({ key, question, options, correct }) => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <strong>${question}</strong><br>
+          <ul>
+            ${options.map(opt => `<li>${opt}${opt === correct ? " ✅" : ""}</li>`).join("")}
+          </ul>
+          <button onclick="deleteQuestion('${key}')">حذف</button>
+        `;
+        questionsList.appendChild(li);
+      });
+    }
+
+    window.deleteQuestion = function(key) {
+      if (confirm("هل أنت متأكد من حذف هذا السؤال؟")) {
+        remove(ref(db, `questions/${key}`));
+      }
+    }
+
+    window.addQuestion = function() {
+      const question = questionInput.value.trim();
+      const o1 = opt1.value.trim();
+      const o2 = opt2.value.trim();
+      const o3 = opt3.value.trim();
+      const o4 = opt4.value.trim();
+
+      if (!question || !o1 || !o2 || !o3 || !o4) {
+        alert("يرجى تعبئة جميع الحقول!");
+        return;
+      }
+
+      const newQuestion = {
+        question,
+        options: shuffleArray([o1, o2, o3, o4]),
+        correct: o4
+      };
+
+      const newQuestionRef = push(questionsRef);
+      set(newQuestionRef, newQuestion);
+
+      questionInput.value = opt1.value = opt2.value = opt3.value = opt4.value = "";
+    }
+
+    // استماع لتغيرات الأسئلة
+    onValue(questionsRef, (snapshot) => {
+      questions = [];
+      snapshot.forEach(childSnapshot => {
+        questions.push({ key: childSnapshot.key, ...childSnapshot.val() });
+      });
+      displayQuestions();
+    });
+
+    // استماع لتغيرات نتائج المتسابقين
+    onValue(contestantsRef, (snapshot) => {
+      tableBody.innerHTML = "";
+      let index = 1;
+      snapshot.forEach(childSnapshot => {
+        const data = childSnapshot.val();
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${index++}</td>
+          <td>${data.name}</td>
+          <td>${data.score}</td>
+          <td>${new Date(data.timestamp).toLocaleString()}</td>
+        `;
+        tableBody.appendChild(tr);
+      });
+    });
+  </script>
+</body>
+</html>
